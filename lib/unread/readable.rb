@@ -55,6 +55,34 @@ module Unread
         end
       end
 
+      def mark_collection_item_as_read(obj, reader, timestamp)
+        marking_proc = proc {
+          rm = obj.read_marks.find_or_initialize_by(reader: reader)
+          rm.timestamp = timestamp
+          rm.save!
+        }
+
+        if using_postgresql?
+          # With PostgreSQL, a transaction is unusable after a unique constraint vialoation.
+          # To avoid this, nested transactions are required.
+          # http://api.rubyonrails.org/classes/ActiveRecord/Transactions/ClassMethods.html#module-ActiveRecord::Transactions::ClassMethods-label-Exception+handling+and+rolling+back
+          ReadMark.transaction(requires_new: true) do
+            begin
+              marking_proc.call
+            rescue ActiveRecord::RecordNotUnique
+              # The object is explicitly marked as read, so rollback the inner transaction
+              raise ActiveRecord::Rollback
+            end
+          end
+        else
+          begin
+            marking_proc.call
+          rescue ActiveRecord::RecordNotUnique
+            # The object is explicitly marked as read, so there is nothing to do
+          end
+        end
+      end
+
       # A scope with all items accessable for the given reader
       # It's used in cleanup_read_marks! to support a filtered cleanup
       # Should be overriden if a reader doesn't have access to all items

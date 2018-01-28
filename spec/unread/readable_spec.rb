@@ -292,7 +292,6 @@ describe Unread::Readable do
       expect(@email2.unread?(@reader)).to be_falsey
     end
 
-
     it "should mark all objects as read" do
       Email.mark_as_read! :all, for: @reader
 
@@ -326,6 +325,11 @@ describe Unread::Readable do
       expect {
         Email.mark_as_read! :foo, :bar
       }.to raise_error(ArgumentError)
+    end
+
+    it "should work with STI readers" do
+      Email.mark_as_read! [ @email1 ], for: Customer.find(@sti_reader.id)
+      expect(@email1.unread?(@sti_reader)).to be_falsey
     end
   end
 
