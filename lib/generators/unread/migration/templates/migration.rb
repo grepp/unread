@@ -7,7 +7,7 @@ class UnreadMigration < Unread::MIGRATION_BASE_CLASS
     create_table ReadMark, force: true, options: create_options do |t|
       t.references :readable, polymorphic: { null: false }
       t.references :reader,   polymorphic: { null: false }
-      t.datetime :timestamp
+      t.datetime :timestamp, null: false
     end
 
     index_name = 'read_marks_reader_readable_index'
