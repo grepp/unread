@@ -297,9 +297,6 @@ describe Unread::Readable do
     it "should mark the rest as read when the first record is not unique" do
       Email.mark_as_read! [ @email1 ], for: @reader
 
-      allow(@email1).to receive_message_chain("read_marks.find_or_initialize_by")
-        .and_return(@email1.read_marks.build(reader: @reader))
-
       expect do
         Email.mark_as_read! [ @email1, @email2 ], for: @reader
       end.to change(ReadMark, :count).by(1)

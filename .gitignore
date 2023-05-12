@@ -1,6 +1,9 @@
 *.gem
+*.log
 .bundle
 Gemfile.lock
 gemfiles/*.lock
 pkg/*
 coverage/*
+
+.idea

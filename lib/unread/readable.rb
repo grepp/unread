@@ -9,10 +9,30 @@ module Unread
 
         if target == :all
           reset_read_marks_for_user(reader)
-        elsif target.respond_to?(:each)
-          mark_collection_as_read(target, reader)
+        elsif target.is_a?(ActiveRecord::Relation)
+          mark_relation_as_read(target, reader)
         else
-          raise ArgumentError
+          mark_collection_as_read(target, reader)
+        end
+      end
+
+      def mark_relation_as_read(relation, reader)
+        raise ArgumentError unless relation.klass == self
+
+        ReadMark.transaction do
+          global_timestamp = reader.read_mark_global(self).try(:timestamp)
+          on = readable_options[:on]
+
+          if global_timestamp
+            relation = relation.where("#{on} > ?", global_timestamp)
+          end
+
+          Upsert.batch(connection, ReadMark.table_name) do |upsert|
+            relation.pluck(relation.klass.primary_key, on).each do |readable_id, timestamp|
+              upsert.row({ readable_id: readable_id, readable_type: readable_parent.name, reader_id: reader.id, reader_type: reader.class.name }, timestamp: timestamp)
+            end
+          end
+          true
         end
       end
 
@@ -20,14 +40,16 @@ module Unread
         ReadMark.transaction do
           global_timestamp = reader.read_mark_global(self).try(:timestamp)
 
-          collection.each do |obj|
-            raise ArgumentError unless obj.is_a?(self)
-            timestamp = obj.send(readable_options[:on])
+          Upsert.batch(connection, ReadMark.table_name) do |upsert|
+            Array(collection).each do |obj|
+              raise ArgumentError unless obj.is_a?(self)
+              timestamp = obj.send(readable_options[:on])
 
-            if global_timestamp && global_timestamp >= timestamp
-              # The object is implicitly marked as read, so there is nothing to do
-            else
-              mark_collection_item_as_read(obj, reader, timestamp)
+              if global_timestamp && global_timestamp >= timestamp
+                # The object is implicitly marked as read, so there is nothing to do
+              else
+                upsert.row({ readable_id: obj.id, readable_type: readable_parent.name, reader_id: reader.id, reader_type: reader.class.name }, timestamp: timestamp)
+              end
             end
           end
         end
