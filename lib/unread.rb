@@ -13,6 +13,12 @@ require 'unread/version'
 ActiveRecord::Base.send :include, Unread
 ActiveRecord::Relation.send :include, ActiveRecordRelation::Unread
 
+Unread::MIGRATION_BASE_CLASS = if ActiveRecord::VERSION::MAJOR >= 5
+                                 ActiveRecord::Migration[5.0]
+                               else
+                                 ActiveRecord::Migration
+                               end
+
 ActiveSupport.on_load(:active_record) do
   require 'unread/read_mark'
 
