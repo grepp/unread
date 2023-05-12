@@ -27,11 +27,16 @@ module Unread
             relation = relation.where("#{on} > ?", global_timestamp)
           end
 
-          Upsert.batch(connection, ReadMark.table_name) do |upsert|
-            relation.pluck(relation.klass.primary_key, on).each do |readable_id, timestamp|
-              upsert.row({ readable_id: readable_id, readable_type: readable_parent.name, reader_id: reader.id, reader_type: reader.class.base_class.name }, timestamp: timestamp)
-            end
+          read_marks = []
+          relation.pluck(relation.klass.primary_key, on).each do |readable_id, timestamp|
+            read_marks << ReadMark.new(readable_id: readable_id, readable_type: readable_parent.name, reader_id: reader.id, reader_type: reader.class.base_class.name, timestamp: timestamp)
           end
+
+          ReadMark.import(read_marks, on_duplicate_key_update: {
+            conflict_target: %i[reader_id reader_type readable_id readable_type],
+            columns: %i[timestamp]
+          }) if read_marks.present?
+
           true
         end
       end
@@ -40,18 +45,22 @@ module Unread
         ReadMark.transaction do
           global_timestamp = reader.read_mark_global(self).try(:timestamp)
 
-          Upsert.batch(connection, ReadMark.table_name) do |upsert|
-            Array(collection).each do |obj|
-              raise ArgumentError unless obj.is_a?(self)
-              timestamp = obj.send(readable_options[:on])
+          read_marks = []
+          Array(collection).each do |obj|
+            raise ArgumentError unless obj.is_a?(self)
+            timestamp = obj.send(readable_options[:on])
 
-              if global_timestamp && global_timestamp >= timestamp
-                # The object is implicitly marked as read, so there is nothing to do
-              else
-                upsert.row({ readable_id: obj.id, readable_type: readable_parent.name, reader_id: reader.id, reader_type: reader.class.base_class.name }, timestamp: timestamp)
-              end
+            if global_timestamp && global_timestamp >= timestamp
+              # The object is implicitly marked as read, so there is nothing to do
+            else
+              read_marks << ReadMark.new(readable_id: obj.id, readable_type: readable_parent.name, reader_id: reader.id, reader_type: reader.class.base_class.name, timestamp: timestamp)
             end
           end
+
+          ReadMark.import(read_marks, on_duplicate_key_update: {
+            conflict_target: %i[reader_id reader_type readable_id readable_type],
+            columns: %i[timestamp]
+          }) if read_marks.present?
         end
       end
 
@@ -126,9 +135,9 @@ module Unread
         ReadMark.transaction do
           if unread?(reader)
             rm = read_mark(reader) || read_marks.build
-            rm.reader_id   = reader.id
+            rm.reader_id = reader.id
             rm.reader_type = reader.class.base_class.name
-            rm.timestamp   = self.send(readable_options[:on])
+            rm.timestamp = self.send(readable_options[:on])
             rm.save!
           end
         end

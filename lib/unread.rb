@@ -1,5 +1,5 @@
 require 'active_record'
-require 'upsert'
+require 'activerecord-import'
 
 require 'unread/base'
 require 'unread/readable'
