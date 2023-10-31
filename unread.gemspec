@@ -22,7 +22,7 @@ Gem::Specification.new do |s|
   s.require_paths = ["lib"]
 
   s.add_dependency 'activerecord', '>= 3'
-  s.add_dependency 'activerecord-import', '~> 1.4.1'
+  s.add_dependency 'activerecord-import', '~> 1.5.0'
 
   s.add_development_dependency 'bundler'
   s.add_development_dependency 'rake'
